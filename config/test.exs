@@ -6,6 +6,11 @@ config :platform, PlatformWeb.Endpoint,
   http: [port: 4001],
   server: false
 
+# Reduce argon2 rounds to speed up tests
+config :argon2_elixir,
+  t_cost: 2,
+  m_cost: 12
+
 # Print only warnings and errors during test
 config :logger, level: :warn
 

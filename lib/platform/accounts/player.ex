@@ -1,6 +1,7 @@
 defmodule Platform.Accounts.Player do
   use Ecto.Schema
   import Ecto.Changeset
+  alias Platform.Accounts.Player
 
 
   schema "players" do
@@ -14,10 +15,34 @@ defmodule Platform.Accounts.Player do
   end
 
   @doc false
-  def changeset(player, attrs) do
+  def changeset(%Player{} = player, attrs) do
     player
     |> cast(attrs, [:display_name, :password, :username, :score])
     |> validate_required([:username])
     |> unique_constraint(:username)
+    |> validate_length(:username, min: 2, max: 100)
+    |> validate_length(:password, min: 4)
+    |> put_pass_digest()
+  end
+
+  @doc false
+  def registration_changeset(%Player{} = player, attrs) do
+    player
+    |> cast(attrs, [:password, :username])
+    |> validate_required([:password, :username])
+    |> unique_constraint(:username)
+    |> validate_length(:username, min: 2, max: 100)
+    |> validate_length(:password, min: 6)
+    |> put_pass_digest()
+  end
+
+  defp put_pass_digest(changeset) do
+    case changeset do
+      %Ecto.Changeset{valid?: true, changes: %{password: pass}} ->
+        put_change(changeset, :password_digest, Comeonin.Argon2.hashpwsalt(pass))
+
+      _ ->
+        changeset
+    end
   end
 end
