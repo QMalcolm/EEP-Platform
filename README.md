@@ -1,5 +1,7 @@
 # Platform
 
+I've been working with Elixir/Phoenix for building backend APIs for awhile now. However I've never done a full stack project with elixir + "something else" myself. Thus, this repo is me learning how to build something with elm as the frontend and elixir as the backend.
+
 To start your Phoenix server:
 
   * Install dependencies with `mix deps.get`
