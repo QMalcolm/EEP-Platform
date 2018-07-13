@@ -38,6 +38,21 @@ defmodule Platform.Products do
   def get_game!(id), do: Repo.get!(Game, id)
 
   @doc """
+  Gets a single game.
+
+  Raises `Ecto.NoResultsError` if the Gameplay does not exist.
+
+  ## Examples
+      iex> get_game_by_slug!("platform")
+      %Gameplay{}
+
+      iex> get_game_by_slug!("456")
+      ** (Ecto.NoResultsError)
+
+"""
+def get_game_by_slug!(slug), do: Repo.get_by!(Game, slug: slug)
+
+  @doc """
   Creates a game.
 
   ## Examples

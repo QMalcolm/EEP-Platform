@@ -4,9 +4,9 @@ defmodule PlatformWeb.GameControllerTest do
   alias Platform.Products
   alias Platform.Products.Game
 
-  @create_attrs %{description: "some description", featured: true, thumbnail: "some thumbnail", title: "some title"}
-  @update_attrs %{description: "some updated description", featured: false, thumbnail: "some updated thumbnail", title: "some updated title"}
-  @invalid_attrs %{description: nil, featured: nil, thumbnail: nil, title: nil}
+  @create_attrs %{description: "some description", featured: true, thumbnail: "some thumbnail", title: "some title", slug: "some-slug"}
+  @update_attrs %{description: "some updated description", featured: false, thumbnail: "some updated thumbnail", title: "some updated title", slug: "some-slug"}
+  @invalid_attrs %{description: nil, featured: nil, thumbnail: nil, title: nil, slug: nil}
 
   def fixture(:game) do
     {:ok, game} = Products.create_game(@create_attrs)
@@ -34,6 +34,7 @@ defmodule PlatformWeb.GameControllerTest do
         "id" => id,
         "description" => "some description",
         "featured" => true,
+        "slug" => "some-slug",
         "thumbnail" => "some thumbnail",
         "title" => "some title"}
     end
@@ -56,6 +57,7 @@ defmodule PlatformWeb.GameControllerTest do
         "id" => id,
         "description" => "some updated description",
         "featured" => false,
+        "slug" => "some-slug",
         "thumbnail" => "some updated thumbnail",
         "title" => "some updated title"}
     end
