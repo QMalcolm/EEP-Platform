@@ -1,8 +1,13 @@
 module Platformer exposing (..)
 
 import AnimationFrame exposing (diffs)
-import Html exposing (Html, div)
+import Html exposing (Html, button, div)
+import Html.Events exposing (onClick)
+import Json.Encode as Encode
 import Keyboard exposing (KeyCode, downs)
+import Phoenix.Channel
+import Phoenix.Push
+import Phoenix.Socket
 import Random
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
@@ -39,6 +44,7 @@ type alias Model =
   , itemPositionX : Int
   , itemPositionY : Int
   , itemsCollected : Int
+  , phxSocket : Phoenix.Socket.Socket Msg
   , playerScore : Int
   , timeRemaining : Int
   }
@@ -52,13 +58,39 @@ initialModel =
   , itemPositionX = 500
   , itemPositionY = 300
   , itemsCollected = 0
+  , phxSocket = initialSocketJoin
   , playerScore = 0
   , timeRemaining = 10
   }
 
 init : ( Model, Cmd Msg )
 init =
-  ( initialModel, Cmd.none)
+  ( initialModel, Cmd.map PhoenixMsg initialSocketCommand )
+
+initialSocket : ( Phoenix.Socket.Socket Msg, Cmd (Phoenix.Socket.Msg Msg) )
+initialSocket =
+    let
+        devSocketServer =
+          "ws://localhost:4000/socket/websocket"
+    in
+        Phoenix.Socket.init devSocketServer
+          |> Phoenix.Socket.withDebug
+          |> Phoenix.Socket.on "save_score" "score:platformer" SaveScore
+          |> Phoenix.Socket.join initialChannel
+
+initialChannel : Phoenix.Channel.Channel msg
+initialChannel =
+    Phoenix.Channel.init "score:platformer"
+
+initialSocketJoin : Phoenix.Socket.Socket Msg
+initialSocketJoin =
+  initialSocket
+    |> Tuple.first
+
+initialSocketCommand : Cmd (Phoenix.Socket.Msg Msg)
+initialSocketCommand =
+    initialSocket
+      |> Tuple.second
 
 -- UPDATE
 
@@ -66,6 +98,10 @@ type Msg
   = NoOp
   | CountdownTimer Time
   | KeyDown KeyCode
+  | PhoenixMsg (Phoenix.Socket.Msg Msg)
+  | SaveScore Encode.Value
+  | SaveScoreError Encode.Value
+  | SaveScoreRequest
   | SetNewItemPositionX Int
   | TimeUpdate Time
 
@@ -84,7 +120,7 @@ update msg model =
                 , characterPositionX = 50
                 , itemsCollected = 0
                 , gameState = Playing
-                , playerScore = 10
+                , playerScore = 0
                 , timeRemaining = 10
                 }
             , Cmd.none
@@ -140,6 +176,38 @@ update msg model =
       else
         ( model, Cmd.none )
 
+    PhoenixMsg msg ->
+      let
+          ( phxSocket, phxCmd ) = Phoenix.Socket.update msg model.phxSocket
+      in
+          ( { model | phxSocket = phxSocket }
+          , Cmd.map PhoenixMsg phxCmd
+          )
+
+    SaveScoreRequest ->
+      let
+          payload =
+            Encode.object [ ( "player_score", Encode.int model.playerScore ) ]
+
+          phxPush =
+            Phoenix.Push.init "save_score" "score:platformer"
+              |> Phoenix.Push.withPayload payload
+              |> Phoenix.Push.onOk SaveScore
+              |> Phoenix.Push.onError SaveScoreError
+
+          ( phxSocket, phxCmd ) =
+            Phoenix.Socket.push phxPush model.phxSocket
+      in
+          ( { model | phxSocket = phxSocket }
+          , Cmd.map PhoenixMsg phxCmd
+          )
+
+    SaveScore value ->
+      ( model, Cmd.none )
+
+    SaveScoreError message ->
+      Debug.log "Error sending score over socket."
+        ( model, Cmd.none )
 characterFoundItem : Model -> Bool
 characterFoundItem model =
   let
@@ -162,13 +230,17 @@ subscriptions model =
     [ downs KeyDown
     , diffs TimeUpdate
     , every second CountdownTimer
+    , Phoenix.Socket.listen model.phxSocket PhoenixMsg
     ]
 
 -- VIEW
 
 view : Model -> Html Msg
 view model =
-  div [] [ viewGame model ]
+  div []
+      [ viewGame model
+      , viewSaveScoreButton
+      ]
 
 viewGame : Model -> Svg Msg
 viewGame model =
@@ -356,3 +428,13 @@ viewGameOverScreenText =
       [ viewGameText 260 160 "Game Over"
       , viewGameText 140 180 "Press the SPACE BAR key to restart."
       ]
+
+viewSaveScoreButton : Html Msg
+viewSaveScoreButton =
+    div []
+        [ button
+          [ onClick SaveScoreRequest
+          , class "btn btn-primary"
+          ]
+          [ text "Save Score"]
+        ]
