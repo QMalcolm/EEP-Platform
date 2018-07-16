@@ -39,7 +39,6 @@ type Direction
 type GameState
   = StartScreen
   | Playing
-  | Success
   | GameOver
 
 type alias Gameplay =
@@ -119,6 +118,7 @@ type Msg
   | SaveScoreError Encode.Value
   | SaveScoreRequest
   | SetNewItemPositionX Int
+  | SetNewItemPositionY Int
   | TimeUpdate Time
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -134,6 +134,9 @@ update msg model =
             ( { model
                 | characterDirection = Right
                 , characterPositionX = 50
+                , characterPositionY = 300
+                , itemPositionX =500
+                , itemPositionY = 300
                 , itemsCollected = 0
                 , gameState = Playing
                 , playerScore = 0
@@ -146,22 +149,73 @@ update msg model =
 
         37 ->
           if model.gameState == Playing then
-            ( { model
-                | characterDirection = Left
-                , characterPositionX = model.characterPositionX - 15
-                }
-            , Cmd.none
-            )
+            if model.characterPositionX - 15 < 0 then
+              ( { model
+                  | characterDirection = Left
+                  , characterPositionX = 0
+                  }
+              , Cmd.none
+              )
+            else
+              ( { model
+                  | characterDirection = Left
+                  , characterPositionX = model.characterPositionX - 15
+                  }
+              , Cmd.none
+              )
+          else
+            ( model, Cmd.none )
+
+        38 ->
+          if model.gameState == Playing then
+            if model.characterPositionY - 15 < 50 then
+              ( { model
+                  | characterPositionY = 50
+                  }
+              , Cmd.none
+              )
+            else
+              ( { model
+                  | characterPositionY = model.characterPositionY - 15
+                  }
+              , Cmd.none
+              )
           else
             ( model, Cmd.none )
 
         39 ->
           if model.gameState == Playing then
-            ( { model
-                | characterDirection = Right
-                , characterPositionX = model.characterPositionX + 15
-                }
-            , Cmd.none )
+            if model.characterPositionX + 15 > 550 then
+              ( { model
+                  | characterDirection = Right
+                  , characterPositionX = 550
+                  }
+              , Cmd.none
+              )
+            else
+              ( { model
+                  | characterDirection = Right
+                  , characterPositionX = model.characterPositionX + 15
+                  }
+              , Cmd.none
+              )
+          else
+            ( model, Cmd.none )
+
+        40 ->
+          if model.gameState == Playing then
+            if model.characterPositionY + 15 > 350 then
+              ( { model
+                  | characterPositionY = 350
+                  }
+              , Cmd.none
+              )
+            else
+              ( { model
+                  | characterPositionY = model.characterPositionY + 15
+                  }
+              , Cmd.none
+              )
           else
             ( model, Cmd.none )
 
@@ -173,6 +227,7 @@ update msg model =
         ( { model
             | itemsCollected = model.itemsCollected + 1
             , playerScore = model.playerScore + 100
+            , timeRemaining = model.timeRemaining + 1
             }
         , Random.generate SetNewItemPositionX (Random.int 50 500)
         )
@@ -180,14 +235,19 @@ update msg model =
         ( model, Cmd.none )
 
     SetNewItemPositionX newPositionX ->
-      ( { model | itemPositionX = newPositionX }, Cmd.none )
+      ( { model
+          | itemPositionX = newPositionX
+          }
+        , Random.generate SetNewItemPositionY (Random.int 50 350)
+        )
+
+    SetNewItemPositionY newPositionY ->
+      ( { model | itemPositionY = newPositionY }, Cmd.none )
 
     CountdownTimer time ->
       if model.gameState == Playing && model.timeRemaining > 0 then
         ( { model | timeRemaining = model.timeRemaining - 1 }, Cmd.none )
-      else if model.itemsCollected >= 10 then
-        ( { model | gameState = Success }, Cmd.none )
-      else if model.itemsCollected < 10 && model.timeRemaining == 0 then
+      else if model.timeRemaining == 0 then
         ( { model | gameState = GameOver }, Cmd.none )
       else
         ( model, Cmd.none )
@@ -237,16 +297,31 @@ update msg model =
 characterFoundItem : Model -> Bool
 characterFoundItem model =
   let
-      approximateItemLowerBound =
+      approximateItemLowerXBound =
         model.itemPositionX - 35
 
-      approximateItemUpperBound =
+      approximateItemUpperXBound =
         model.itemPositionX
 
-      approximateItemRange =
-        List.range approximateItemLowerBound approximateItemUpperBound
+      approximateItemRangeX =
+        List.range approximateItemLowerXBound approximateItemUpperXBound
+
+      approximateItemLowerYBound =
+        model.itemPositionY - 35
+
+      approximateItemUpperYBound =
+        model.itemPositionY
+
+      approximateItemRangeY =
+        List.range approximateItemLowerYBound approximateItemUpperYBound
+
+      inX =
+        List.member model.characterPositionX approximateItemRangeX
+
+      inY =
+        List.member model.characterPositionY approximateItemRangeY
   in
-    List.member model.characterPositionX approximateItemRange
+    inX && inY
 
 -- SUBSCRIPTIONS
 
@@ -290,7 +365,7 @@ viewGameSky =
       [ x "0"
       , y "0"
       , width "600"
-      , height "300"
+      , height "50"
       , fill "#4b7cfb"
       ]
       []
@@ -299,9 +374,9 @@ viewGameGround : Svg Msg
 viewGameGround =
   rect
     [ x "0"
-    , y "300"
+    , y "50"
     , width "600"
-    , height "100"
+    , height "350"
     , fill "green"
     ]
     []
@@ -404,6 +479,9 @@ viewGameState model =
             , viewCharacter model
             , viewItem model
             , viewStartScreenText
+            , viewItemsCollected model
+            , viewGameScore model
+            , viewGameTime model
             ]
 
         Playing ->
@@ -417,15 +495,6 @@ viewGameState model =
             , viewGameTime model
             ]
 
-        Success ->
-            [ viewGameWindow
-            , viewGameSky
-            , viewGameGround
-            , viewCharacter model
-            , viewItem model
-            , viewSuccessScreenText
-            ]
-
         GameOver ->
             [ viewGameWindow
             , viewGameSky
@@ -433,21 +502,17 @@ viewGameState model =
             , viewCharacter model
             , viewItem model
             , viewGameOverScreenText
+            , viewItemsCollected model
+            , viewGameScore model
+            , viewGameTime model
             ]
 
 viewStartScreenText : Svg Msg
 viewStartScreenText =
   Svg.svg []
-    [ viewGameText 140 160 "Collect ten coins in ten seconds!"
+    [ viewGameText 140 160 "Collect as many coins as you can!"
     , viewGameText 140 180 "Press the SPACE BAR key to start."
     ]
-
-viewSuccessScreenText : Svg Msg
-viewSuccessScreenText =
-    Svg.svg []
-      [ viewGameText 260 160 "Success!"
-      , viewGameText 140 180 "Press the SPACE BAR key to restart."
-      ]
 
 viewGameOverScreenText : Svg Msg
 viewGameOverScreenText =
